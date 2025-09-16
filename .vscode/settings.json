@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "omp.h": "c"
+        "omp.h": "c",
+        "kmeans.h": "c",
+        "polybench.c": "cpp"
     }
 }
