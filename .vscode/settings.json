@@ -2,6 +2,8 @@
     "files.associations": {
         "omp.h": "c",
         "kmeans.h": "c",
-        "polybench.c": "cpp"
+        "polybench.c": "cpp",
+        "cmath": "cpp",
+        "iostream": "cpp"
     }
 }

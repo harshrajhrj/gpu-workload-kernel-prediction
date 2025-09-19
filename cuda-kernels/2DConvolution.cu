@@ -16,6 +16,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <cuda.h>
+#include <iostream>
 
 #define POLYBENCH_TIME 1
 
@@ -29,6 +30,18 @@
 #define GPU_DEVICE 0
 
 #define RUN_ON_CPU
+
+#define CHECK_CUDA_ERROR(val) check((val), #val, __FILE__, __LINE__)
+
+template <typename T>
+void check(T err, const char *const func, const char *const file, const int line)
+{
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "CUDA error at %s:%d code=%d(%s) \"%s\" \n", file, line, static_cast<unsigned int>(err), cudaGetErrorString(err), func);
+        exit(EXIT_FAILURE);
+    }
+}
 
 
 void conv2D(int ni, int nj, DATA_TYPE POLYBENCH_2D(A, NI, NJ, ni, nj), DATA_TYPE POLYBENCH_2D(B, NI, NJ, ni, nj))
@@ -120,7 +133,7 @@ __global__ void convolution2D_kernel(int ni, int nj, DATA_TYPE *A, DATA_TYPE *B)
 
 
 void convolution2DCuda(int ni, int nj, DATA_TYPE POLYBENCH_2D(A, NI, NJ, ni, nj), DATA_TYPE POLYBENCH_2D(B, NI, NJ, ni, nj), 
-			DATA_TYPE POLYBENCH_2D(B_outputFromGpu, NI, NJ, ni, nj))
+			DATA_TYPE POLYBENCH_2D(B_outputFromGpu, NI, NJ, ni, nj), int bx, int by)
 {
 	DATA_TYPE *A_gpu;
 	DATA_TYPE *B_gpu;
@@ -129,13 +142,15 @@ void convolution2DCuda(int ni, int nj, DATA_TYPE POLYBENCH_2D(A, NI, NJ, ni, nj)
 	cudaMalloc((void **)&B_gpu, sizeof(DATA_TYPE) * NI * NJ);
 	cudaMemcpy(A_gpu, A, sizeof(DATA_TYPE) * NI * NJ, cudaMemcpyHostToDevice);
 	
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+	dim3 block(bx, by);
 	dim3 grid((size_t)ceil( ((float)NI) / ((float)block.x) ), (size_t)ceil( ((float)NJ) / ((float)block.y)) );
 
   	polybench_start_instruments;
 
 	convolution2D_kernel <<< grid,block >>> (ni, nj, A_gpu,B_gpu);
 	cudaDeviceSynchronize();
+	// CHECK_CUDA_ERROR(cudaPeekAtLastError());
+	// CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 	
 	/* Stop and print timer. */
 	printf("GPU Time in seconds:\n");
@@ -179,10 +194,20 @@ int main(int argc, char *argv[])
 
 	//initialize the arrays
 	init(ni, nj, POLYBENCH_ARRAY(A));
+
+	// Check if two block dimensions were provided
+	if(argc != 3) {
+		std::cerr << "Usage: " << argv[0] << " <block size x> <block size y>" << std::endl;
+		return 1;
+	}
+
+	// Read block dimensions from command-line arguments
+    int bx = std::atoi(argv[1]);
+    int by = std::atoi(argv[2]);
 	
 	GPU_argv_init();
 
-	convolution2DCuda(ni, nj, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(B), POLYBENCH_ARRAY(B_outputFromGpu));
+	convolution2DCuda(ni, nj, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(B), POLYBENCH_ARRAY(B_outputFromGpu), bx, by);
 
 	#ifdef RUN_ON_CPU
 	
